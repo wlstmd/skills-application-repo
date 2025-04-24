@@ -37,8 +37,6 @@ metadata:
   name: rollout-canary-svc
   namespace: app
 spec:
-  externalTrafficPolicy: Cluster
-  sessionAffinity: None
   selector:
     app: rollout-canary
   ports:
