@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1     
+kind: Rollout
+metadata:
+  name: canary-app
+  namespace: app
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: rollout-canary
+  template:
+    metadata:
+      labels:
+        app: rollout-canary
+    spec:
+      containers:
+        - name: rollouts-demo
+          image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/skills-repo:latest
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8080
+  strategy:
+    canary:
+      maxSurge: "25%"    # canary 배포로 생성할 pod의 비율
+      maxUnavailable: 0  # 업데이트 될 때 사용할 수 없는 pod의 최대 수
+      steps:
+        - setWeight: 33
+        - pause: { duration: 10 }
+        - setWeight: 66
+        - pause: { duration: 10 }
+        - setWeight: 100
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: rollout-canary-svc
+  namespace: app
+spec:
+  externalTrafficPolicy: Cluster
+  sessionAffinity: None
+  selector:
+    app: rollout-canary
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
