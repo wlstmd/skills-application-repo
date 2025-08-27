@@ -14,7 +14,7 @@ spec:
       labels:
         app: rollout-canary
     spec:
-	    terminationGracePeriodSeconds: 60
+	  terminationGracePeriodSeconds: 60
       containers:
         - name: rollouts-demo
           image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/skills-repo:latest
@@ -129,3 +129,4 @@ spec:
                   number: 80
             path: /
             pathType: Prefix
+
