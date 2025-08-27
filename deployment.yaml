@@ -1,4 +1,4 @@
-apiVersion: argoproj.io/v1alpha1     
+apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
   name: canary-app
@@ -10,57 +10,43 @@ spec:
     matchLabels:
       app: rollout-canary
   template:
-  metadata:
-    labels:
-      app: rollout-canary
-  spec:
-    terminationGracePeriodSeconds: 60
-    containers:
-      - name: rollouts-demo
-        image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/skills-repo:latest
-        imagePullPolicy: Always
-        ports:
-          - containerPort: 8080
-        resources:
-          limits:
-            cpu: 820m
-            memory: 3000Mi
-          requests:
-            cpu: 820m
-            memory: 3000Mi
+    metadata:
+      labels:
+        app: rollout-canary
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: rollouts-demo
+          image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/skills-repo:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 820m
+              memory: 3000Mi
+            requests:
+              cpu: 820m
+              memory: 3000Mi
   strategy:
     canary:
       canaryService: rollout-canary-svc
       stableService: rollout-canary-svc-stable
-      maxSurge: "20%"    # canary 배포로 생성할 pod의 비율
-      maxUnavailable: 1  # 업데이트 될 때 사용할 수 없는 pod의 최대 수
+      maxSurge: "20%"
+      maxUnavailable: 1
       scaleDownDelaySeconds: 30
       steps:
-        # Sets the ratio of canary ReplicaSet to 10%
         - setWeight: 10
-        # set canary scale to a percentage of spec.replicas without changing traffic weight
-        # (supported only with trafficRouting)
         - setCanaryScale:
             weight: 10
-        # Pauses the rollout for an hour. Supported units: s, m, h
         - pause:
             duration: 5m
-        # Pauses indefinitely until manually resumed
         - pause: {}
-        # set canary scale to match the canary traffic weight (default behavior)
         - setCanaryScale:
             matchTrafficWeight: true
-      # traffic routing with aws load balancer
       trafficRouting:
         alb:
-          # The referenced ingress will be injected with a custom action annotation, directing
-          # the AWS Load Balancer Controller to split traffic between the canary and stable
-          # Service, according to the desired traffic weight (required).
           ingress: canary-ingress
-          # Reference to a Service that the Ingress must target in one of the rules (optional).
-          # If omitted, uses canary.stableService.
-          # rootService: foo-api-svc-root
-          # Service port is the port which the Service listens on (required).
           servicePort: 80
 ---
 apiVersion: autoscaling/v1
