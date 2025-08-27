@@ -14,27 +14,86 @@ spec:
       labels:
         app: rollout-canary
     spec:
+	    terminationGracePeriodSeconds: 60
       containers:
         - name: rollouts-demo
           image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/skills-repo:latest
           imagePullPolicy: Always
           ports:
-          - containerPort: 8080
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 820m
+              memory: 3000Mi
+            requests:
+              cpu: 820m
+              memory: 3000Mi
   strategy:
     canary:
-      maxSurge: "25%"    # canary 배포로 생성할 pod의 비율
-      maxUnavailable: 0  # 업데이트 될 때 사용할 수 없는 pod의 최대 수
+      canaryService: rollout-canary-svc
+      stableService: rollout-canary-svc-stable
+      maxSurge: "20%"    # canary 배포로 생성할 pod의 비율
+      maxUnavailable: 1  # 업데이트 될 때 사용할 수 없는 pod의 최대 수
+      scaleDownDelaySeconds: 30
       steps:
-        - setWeight: 33
-        - pause: { duration: 10 }
-        - setWeight: 66
-        - pause: { duration: 10 }
-        - setWeight: 100
+        # Sets the ratio of canary ReplicaSet to 10%
+        - setWeight: 10
+        # set canary scale to a percentage of spec.replicas without changing traffic weight
+        # (supported only with trafficRouting)
+        - setCanaryScale:
+            weight: 10
+        # Pauses the rollout for an hour. Supported units: s, m, h
+        - pause:
+            duration: 5m
+        # Pauses indefinitely until manually resumed
+        - pause: {}
+        # set canary scale to match the canary traffic weight (default behavior)
+        - setCanaryScale:
+            matchTrafficWeight: true
+      # traffic routing with aws load balancer
+      trafficRouting:
+        alb:
+          # The referenced ingress will be injected with a custom action annotation, directing
+          # the AWS Load Balancer Controller to split traffic between the canary and stable
+          # Service, according to the desired traffic weight (required).
+          ingress: canary-ingress
+          # Reference to a Service that the Ingress must target in one of the rules (optional).
+          # If omitted, uses canary.stableService.
+          # rootService: foo-api-svc-root
+          # Service port is the port which the Service listens on (required).
+          servicePort: 80
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: canary-hpa
+  namespace: app
+spec:
+  maxReplicas: 6
+  minReplicas: 3
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: canary-app
+  targetCPUUtilizationPercentage: 60
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: rollout-canary-svc
+  namespace: app
+spec:
+  selector:
+    app: rollout-canary
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rollout-canary-svc-stable
   namespace: app
 spec:
   selector:
@@ -65,15 +124,8 @@ spec:
         paths:
           - backend:
               service:
-                name: rollout-canary-svc
+                name: rollout-canary-svc-stable
                 port:
                   number: 80
             path: /
-            pathType: Prefix
-          - backend:
-              service:
-                name: rollout-canary-svc
-                port:
-                  number: 80
-            path: /healthcheck
             pathType: Prefix
