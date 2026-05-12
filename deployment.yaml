@@ -1,66 +1,68 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
-  name: canary-app
+  name: blue-green-app
   namespace: app
 spec:
-  replicas: 5
+  replicas: 2
   revisionHistoryLimit: 2
-  selector:
+  selector: 
     matchLabels:
-      app: rollout-canary
+      app: rollout-bluegreen
   template:
     metadata:
       labels:
-        app: rollout-canary
+        app: rollout-bluegreen
     spec:
-      terminationGracePeriodSeconds: 60
       containers:
-        - name: rollouts-demo
-          image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/skills-repo:v2
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8080
-          resources:
-          requests:
-            memory: "128Mi"
-            cpu: "128m"
-          limits:
-            memory: "128Mi"
-            cpu: "128m"
+      - name: rollouts-demo
+        image: ACCOUNT_ID.dkr.ecr.ap-northeast-2.amazonaws.com/skills-repo:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
   strategy:
-    canary:
-      steps:
-      - setWeight: 33
-      - pause: {duration: 30s}
-      - setWeight: 66
-      - pause: {duration: 30s}
-      - setWeight: 100
-    
+    blueGreen: 
+      activeService: rollout-bluegreen-active
+      previewService: rollout-bluegreen-preview
+      autoPromotionEnabled: true
 ---
-apiVersion: v1
 kind: Service
+apiVersion: v1
 metadata:
-  name: rollout-canary-svc
+  name: rollout-bluegreen-active
   namespace: app
 spec:
   selector:
-    app: rollout-canary
+    app: rollout-bluegreen
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8080
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: rollout-bluegreen-preview
+  namespace: app
+spec:
+  selector:
+    app: rollout-bluegreen
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   namespace: app
-  name: canary-ingress
+  name: blue-green-ingress
   annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/group.name: rollouts-test
     alb.ingress.kubernetes.io/scheme: internal
-    alb.ingress.kubernetes.io/tags: Name=skills-canary-alb
+    alb.ingress.kubernetes.io/tags: Name=skills-bule-green-alb
     alb.ingress.kubernetes.io/healthcheck-path: "/healthcheck"
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
     alb.ingress.kubernetes.io/backend-protocol: HTTP
@@ -72,10 +74,15 @@ spec:
         paths:
           - backend:
               service:
-                name: rollout-canary-svc
+                name: rollout-bluegreen-preview
                 port:
                   number: 80
             path: /
             pathType: Prefix
-
-
+          - backend:
+              service:
+                name: rollout-bluegreen-preview
+                port:
+                  number: 80
+            path: /healthcheck
+            pathType: Prefix
