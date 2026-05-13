@@ -4,23 +4,20 @@ phases:
   pre_build:
     commands:
       - echo Logging in to Amazon ECR...
-
-      - git fetch --tags
-
       - AccountID=$(aws sts get-caller-identity --query "Account" --output text)
-
       - ECR_NAME=skills-repo
-
       - ECR_URI=$AccountID.dkr.ecr.ap-northeast-2.amazonaws.com/$ECR_NAME
-
       - aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin $AccountID.dkr.ecr.ap-northeast-2.amazonaws.com
 
-      - IMAGE_TAG=$(git describe --tags --abbrev=0)
+      # Git Tag 기반 SemVer (태그가 없는 경우 commit SHA 사용)
+      - IMAGE_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)
 
   build:
     commands:
+      - echo Building the Docker image...
       - docker build -t $ECR_URI:$IMAGE_TAG .
 
   post_build:
     commands:
+      - echo Pushing the Docker image...
       - docker push $ECR_URI:$IMAGE_TAG
