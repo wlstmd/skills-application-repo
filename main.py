@@ -6,7 +6,7 @@ app = FastAPI()
 
 @app.get("/")
 def return_version():
-    return Response(content="This is Blue Page!!", status_code=200)
+    return Response(content="This is Green Page!!", status_code=200)
 
 
 @app.get("/healthcheck")
