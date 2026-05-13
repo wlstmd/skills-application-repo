@@ -6,14 +6,18 @@ phases:
       - echo Logging in to Amazon ECR...
       - AccountID=$(aws sts get-caller-identity --query "Account" --output text)
       - ECR_NAME=skills-repo
-      - aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin $AccountID.dkr.ecr.ap-northeast-2.amazonaws.com
       - ECR_URI=$AccountID.dkr.ecr.ap-northeast-2.amazonaws.com/$ECR_NAME
-      # - RANDOM_IMAGE_TAG=$(cat /dev/urandom | tr -dc 'a-z' | fold -w 8 | sed 1q)
+      - aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin $AccountID.dkr.ecr.ap-northeast-2.amazonaws.com
+
+      # Git Tag 기반 SemVer
+      - IMAGE_TAG=$(git describe --tags --abbrev=0)
+
   build:
     commands:
       - echo Building the Docker image...
-      - docker build -t $ECR_URI:latest .
+      - docker build -t $ECR_URI:$IMAGE_TAG .
+
   post_build:
     commands:
-      - echo Pushing the Docker images...
-      - docker push $ECR_URI:latest
+      - echo Pushing the Docker image...
+      - docker push $ECR_URI:$IMAGE_TAG
